@@ -479,7 +479,7 @@ int main(int argc, char *argv[]) {
     hid_t h_out_file = createFile(out_fname);
 
     /* Writing attributes into the Header & Cosmology groups */
-    err = writeHeaderAttributes(&pars, &cosmo, &us, NPartTot, h_out_file);
+    err = writeHeaderAttributes(&pars, &cosmo, &us, pars.NumPartGenerate, h_out_file);
     if (err > 0) exit(1);
 
     /* Close the file */
