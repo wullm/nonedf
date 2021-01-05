@@ -42,6 +42,8 @@ int main(int argc, char *argv[]) {
     readParams(&pars, fname);
     readUnits(&us, fname);
 
+    /* Seed the random number generator */
+    rng_state seed = rand_uint64_init(pars.Seed + 1);
 
     printf("The parameter file is %s %d\n", pars.InputFilename, pars.Snapshots);
 
@@ -216,6 +218,28 @@ int main(int argc, char *argv[]) {
         // H5Fclose(h_file);
 
     }
+
+    /* Random sampler used for thermal species */
+    struct sampler thermal_sampler;
+
+    /* Initialize the sampler */
+    double T_eV = 1.95 * us.kBoltzmann / us.ElectronVolt;
+    double thermal_params[2] = {T_eV, 0.0};
+    /* Rescale the domain */
+    double xl = THERMAL_MIN_MOMENTUM * T_eV; //units of kb*T
+    double xr = THERMAL_MAX_MOMENTUM * T_eV; //units of kb*T
+
+    int err = initSampler(&thermal_sampler, fd_pdf, xl, xr, thermal_params);
+    if (err > 0) {
+        printf("Error initializing the thermal motion sampler.\n");
+        exit(1);
+    }
+
+    double p0_eV = samplerCustom(&thermal_sampler, &seed); //present-day momentum
+    printf("%f\n", p0_eV);
+
+    /* Clean the random sampler */
+    cleanSampler(&thermal_sampler);
 
     /* Free the source particle data */
     free(sources);
