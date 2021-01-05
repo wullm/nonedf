@@ -17,19 +17,15 @@
  *
  ******************************************************************************/
 
-#ifndef NONEDF_H
-#define NONEDF_H
 
+#ifndef HEADER_H
+#define HEADER_H
 
+#include <hdf5.h>
 #include "input.h"
-#include "output.h"
-#include "header.h"
-#include "particle.h"
-#include "random.h"
 #include "cosmology.h"
-#include "fft.h"
-#include "fft_kernels.h"
-#include "relativity.h"
-#include "phase_space.h"
 
+int writeHeaderAttributes(struct params *pars, struct cosmology *cosmo,
+                          struct units *us, long long int Npart,
+                          hid_t h_file);
 #endif

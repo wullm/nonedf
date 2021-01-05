@@ -17,19 +17,18 @@
  *
  ******************************************************************************/
 
-#ifndef NONEDF_H
-#define NONEDF_H
+#ifndef OUTPUT_H
+#define OUTPUT_H
 
+#include <hdf5.h>
 
-#include "input.h"
-#include "output.h"
-#include "header.h"
-#include "particle.h"
-#include "random.h"
-#include "cosmology.h"
-#include "fft.h"
-#include "fft_kernels.h"
-#include "relativity.h"
-#include "phase_space.h"
+/* General methods */
+hid_t openFile(const char *fname);
+hid_t createFile(const char *fname);
+int writeFieldHeader(double boxlen, hid_t h_file);
+
+/* Methods for contiguous arrays (analogous to MPI versions in output_mpi.h) */
+int writeFieldFile(const double *box, int N, double box_len, const char *fname);
+int writeFieldData(const double *box, hid_t h_file);
 
 #endif

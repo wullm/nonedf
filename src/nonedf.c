@@ -473,6 +473,21 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    char *out_fname = pars.OutputFilename;
+
+    /* Create the output file */
+    hid_t h_out_file = createFile(out_fname);
+
+    /* Writing attributes into the Header & Cosmology groups */
+    err = writeHeaderAttributes(&pars, &cosmo, &us, NPartTot, h_out_file);
+    if (err > 0) exit(1);
+
+    /* Close the file */
+    H5Fclose(h_out_file);
+
+
+
+
     /* Clean the random sampler */
     cleanSampler(&thermal_sampler);
 
