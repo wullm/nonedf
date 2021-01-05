@@ -488,6 +488,107 @@ int main(int argc, char *argv[]) {
     err = writeHeaderAttributes(&pars, &cosmo, &us, pars.NumPartGenerate, h_out_file);
     if (err > 0) exit(1);
 
+    /* The ExportName */
+    const char *ExportName = pars.ExportName;
+
+    /* The particle group in the output file */
+    hid_t h_grp;
+
+    /* Datsets */
+    hid_t h_data;
+
+    /* Vector dataspace (e.g. positions, velocities) */
+    const hsize_t vrank = 2;
+    const hsize_t vdims[2] = {pars.NumPartGenerate, 3};
+    hid_t h_vspace = H5Screate_simple(vrank, vdims, NULL);
+
+    /* Scalar dataspace (e.g. masses, particle ids) */
+    const hsize_t srank = 1;
+    const hsize_t sdims[1] = {pars.NumPartGenerate};
+    hid_t h_sspace = H5Screate_simple(srank, sdims, NULL);
+
+    /* Create the particle group in the output file */
+    printf("Creating Group '%s' with %lld particles.\n", ExportName, pars.NumPartGenerate);
+    h_grp = H5Gcreate(h_out_file, ExportName, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    /* Coordinates (use vector space) */
+    h_data = H5Dcreate(h_grp, "Coordinates", H5T_NATIVE_DOUBLE, h_vspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dclose(h_data);
+
+    /* Velocities (use vector space) */
+    h_data = H5Dcreate(h_grp, "Velocities", H5T_NATIVE_DOUBLE, h_vspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dclose(h_data);
+
+    /* Masses (use scalar space) */
+    h_data = H5Dcreate(h_grp, "Masses", H5T_NATIVE_DOUBLE, h_sspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dclose(h_data);
+
+    /* Particle IDs (use scalar space) */
+    h_data = H5Dcreate(h_grp, "ParticleIDs", H5T_NATIVE_LLONG, h_sspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dclose(h_data);
+
+    /* Create vector & scalar datapsace for smaller chunks of data */
+    const hsize_t ch_vdims[2] = {pars.NumPartGenerate, 3};
+    const hsize_t ch_sdims[2] = {pars.NumPartGenerate};
+    hid_t h_ch_vspace = H5Screate_simple(vrank, ch_vdims, NULL);
+    hid_t h_ch_sspace = H5Screate_simple(srank, ch_sdims, NULL);
+
+    /* The start of this chunk, in the overall vector & scalar spaces */
+    const hsize_t start_in_group = 0;
+    const hsize_t vstart[2] = {start_in_group, 0}; //always with the "x" coordinate
+    const hsize_t sstart[1] = {start_in_group};
+
+    /* Choose the corresponding hyperslabs inside the overall spaces */
+    H5Sselect_hyperslab(h_vspace, H5S_SELECT_SET, vstart, NULL, ch_vdims, NULL);
+    H5Sselect_hyperslab(h_sspace, H5S_SELECT_SET, sstart, NULL, ch_sdims, NULL);
+
+    /* Unpack particle data into contiguous arrays */
+    double *coords = malloc(3 * pars.NumPartGenerate * sizeof(double));
+    double *vels = malloc(3 * pars.NumPartGenerate * sizeof(double));
+    double *masses = malloc(1 * pars.NumPartGenerate * sizeof(double));
+    long long *ids = malloc(1 * pars.NumPartGenerate * sizeof(long long));
+    for (int i=0; i<pars.NumPartGenerate; i++) {
+        coords[i * 3 + 0] = genparts[i].x[0];
+        coords[i * 3 + 1] = genparts[i].x[1];
+        coords[i * 3 + 2] = genparts[i].x[2];
+        vels[i * 3 + 0] = genparts[i].v[0];
+        vels[i * 3 + 1] = genparts[i].v[1];
+        vels[i * 3 + 2] = genparts[i].v[2];
+        masses[i] = genparts[i].mass;
+        ids[i] = start_in_group + i;
+    }
+
+    /* Write coordinate data (vector) */
+    h_data = H5Dopen(h_grp, "Coordinates", H5P_DEFAULT);
+    H5Dwrite(h_data, H5T_NATIVE_DOUBLE, h_ch_vspace, h_vspace, H5P_DEFAULT, coords);
+    H5Dclose(h_data);
+    free(coords);
+
+    /* Write velocity data (vector) */
+    h_data = H5Dopen(h_grp, "Velocities", H5P_DEFAULT);
+    H5Dwrite(h_data, H5T_NATIVE_DOUBLE, h_ch_vspace, h_vspace, H5P_DEFAULT, vels);
+    H5Dclose(h_data);
+    free(vels);
+
+    /* Write mass data (scalar) */
+    h_data = H5Dopen(h_grp, "Masses", H5P_DEFAULT);
+    H5Dwrite(h_data, H5T_NATIVE_DOUBLE, h_ch_sspace, h_sspace, H5P_DEFAULT, masses);
+    H5Dclose(h_data);
+    free(masses);
+
+    /* Write particle id data (scalar) */
+    h_data = H5Dopen(h_grp, "ParticleIDs", H5P_DEFAULT);
+    H5Dwrite(h_data, H5T_NATIVE_LLONG, h_ch_sspace, h_sspace, H5P_DEFAULT, ids);
+    H5Dclose(h_data);
+    free(ids);
+
+    /* Close the chunk-sized scalar and vector dataspaces */
+    H5Sclose(h_ch_vspace);
+    H5Sclose(h_ch_sspace);
+
+    /* Close the group */
+    H5Gclose(h_grp);
+
     /* Close the file */
     H5Fclose(h_out_file);
 
