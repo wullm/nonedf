@@ -344,19 +344,22 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    /* The particles to be generated */
+    struct particle_ext *genparts = malloc(sizeof(struct particle_ext) *
+                                            pars.NumPartGenerate);
 
     /* Generate random neutrino particles */
-    for (int i=0; i<1; i++) {
+    for (int i=0; i<pars.NumPartGenerate; i++) {
+        struct particle_ext *p = &genparts[i];
+
         double a = cosmo.a_begin;
-        double x[3];
-        double v[3];
 
         /* Generate a random velocity from the Fermi-Dirac distribution */
-        generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
+        generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, p->v);
 
         /* Compute initial phase space density */
-        double f_i = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
-        double f = f_i;
+        p->f_i = fermi_dirac_density(&us, &cosmo, a, p->v, cosmo.M_nu[0]);
+        p->f = p->f_i;
 
         /* The initial particle mass */
         double m_i = 1.0;
@@ -368,32 +371,36 @@ int main(int argc, char *argv[]) {
         double R_nu = pars.CentralRadius;
 
         /* We first generate a random point on the sphere using Gaussians */
-        x[0] = sampleNorm(&seed);
-        x[1] = sampleNorm(&seed);
-        x[2] = sampleNorm(&seed);
+        p->x[0] = sampleNorm(&seed);
+        p->x[1] = sampleNorm(&seed);
+        p->x[2] = sampleNorm(&seed);
 
         /* And normalize */
-        const double r_length = hypot(x[0], hypot(x[1], x[2]));
+        const double r_length = hypot(p->x[0], hypot(p->x[1], p->x[2]));
         if (r_length > 0) {
-            x[0] /= r_length;
-            x[1] /= r_length;
-            x[2] /= r_length;
+            p->x[0] /= r_length;
+            p->x[1] /= r_length;
+            p->x[2] /= r_length;
         }
 
         /* Next, use the last uniform random variate for the radial coordinate */
         double r = cbrt(sampleUniform(&seed)) * R_nu;
 
         /* Apply the radial coordinate and map to the centre of the rectangle */
-        x[0] = x[0] * r + BoxLen * 0.5;
-        x[1] = x[1] * r + BoxLen * 0.5;
-        x[0] = x[2] * r + BoxLen * 0.5;
+        p->x[0] = p->x[0] * r + BoxLen * 0.5;
+        p->x[1] = p->x[1] * r + BoxLen * 0.5;
+        p->x[0] = p->x[2] * r + BoxLen * 0.5;
 
+    }
 
-        /* Integrate the particle forward */
-        double a_factor = 1.03;
-        for (int step=0; step<40; step++) {
-            double p = fermi_dirac_momentum(&us, a, v, cosmo.M_nu[0]);
-            printf("%d %f %f %f %f %e %e\n", step, a, x[0], x[1], x[2], p, w);
+    /* Integrate particles */
+    double a_factor = 1.03;
+    double a = cosmo.a_begin;
+    for (int step=0; step<40; step++) {
+        for (int i=0; i<pars.NumPartGenerate; i++) {
+            struct particle_ext *p = &genparts[i];
+
+            printf("%d %f %f %f %f\n", step, a, p->x[0], p->x[1], p->x[2]);
 
             /* Find the bounding snapshots */
             int j;
@@ -409,8 +416,8 @@ int main(int argc, char *argv[]) {
             /* Get the accelerations at the current location */
             double acc_prev[3];
             double acc_next[3];
-            accelCIC(grav_meshes[ind_prev], N, BoxLen, x[0], x[1], x[2], acc_prev);
-            accelCIC(grav_meshes[ind_next], N, BoxLen, x[0], x[1], x[2], acc_next);
+            accelCIC(grav_meshes[ind_prev], N, BoxLen, p->x[0], p->x[1], p->x[2], acc_prev);
+            accelCIC(grav_meshes[ind_next], N, BoxLen, p->x[0], p->x[1], p->x[2], acc_next);
 
             /* Interpolate the acceleration */
             double acc[3] = {acc_prev[0] + delta * (acc_next[0] - acc_prev[0]),
@@ -422,55 +429,54 @@ int main(int argc, char *argv[]) {
             double drift_factor = get_drift_factor(&cosmo, log(a), log(a * a_factor));
 
             /* Fetch the relativistic correction factors */
-            double relat_kick_correction = relativity_kick(v, a, &us);
-            double relat_drift_correction = relativity_drift(v, a, &us);
+            double relat_kick_correction = relativity_kick(p->v, a, &us);
+            double relat_drift_correction = relativity_drift(p->v, a, &us);
 
             kick_factor *= relat_kick_correction;
             drift_factor *= relat_drift_correction;
 
             /* Execute kick */
-            v[0] += acc[0] * kick_factor;
-            v[1] += acc[1] * kick_factor;
-            v[2] += acc[2] * kick_factor;
+            p->v[0] += acc[0] * kick_factor;
+            p->v[1] += acc[1] * kick_factor;
+            p->v[2] += acc[2] * kick_factor;
 
             /* Apply delta-f step */
-            f = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
-            w = (f - f_i) / f_i;
-            m = w * m_i;
+            p->f = fermi_dirac_density(&us, &cosmo, a, p->v, cosmo.M_nu[0]);
+            double w = (p->f - p->f_i) / p->f_i;
+            p->mass = w * p->mass_i;
 
             /* Execute drift */
-            x[0] += v[0] * drift_factor;
-            x[1] += v[1] * drift_factor;
-            x[2] += v[2] * drift_factor;
+            p->x[0] += p->v[0] * drift_factor;
+            p->x[1] += p->v[1] * drift_factor;
+            p->x[2] += p->v[2] * drift_factor;
 
             /* Ensure that particles wrap */
-            x[0] = fwrap(x[0], BoxLen);
-            x[1] = fwrap(x[1], BoxLen);
-            x[2] = fwrap(x[2], BoxLen);
+            p->x[0] = fwrap(p->x[0], BoxLen);
+            p->x[1] = fwrap(p->x[1], BoxLen);
+            p->x[2] = fwrap(p->x[2], BoxLen);
 
             /* If the particle leaves the central sphere, map it around */
-            double r_x = x[0] - 0.5 * BoxLen;
-            double r_y = x[1] - 0.5 * BoxLen;
-            double r_z = x[2] - 0.5 * BoxLen;
+            double r_x = p->x[0] - 0.5 * BoxLen;
+            double r_y = p->x[1] - 0.5 * BoxLen;
+            double r_z = p->x[2] - 0.5 * BoxLen;
             double r2 = r_x * r_x + r_y * r_y + r_z * r_z;
+            double R_nu = pars.CentralRadius;
             if (r2 > R_nu * R_nu) {
                 /* Map to its antipodal point */
-                x[0] = 0.5 * BoxLen - r_x;
-                x[1] = 0.5 * BoxLen - r_y;
-                x[2] = 0.5 * BoxLen - r_z;
+                p->x[0] = 0.5 * BoxLen - r_x;
+                p->x[1] = 0.5 * BoxLen - r_y;
+                p->x[2] = 0.5 * BoxLen - r_z;
 
                 /* Sample a new velocity */
-                generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
+                generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, p->v);
                 /* Re-compute the initial phase space density */
-                f_i = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
-                f = f_i;
+                p->f_i = fermi_dirac_density(&us, &cosmo, a, p->v, cosmo.M_nu[0]);
+                p->f = p->f_i;
                 w = 0;
             }
-
-            /* Step forward */
-            a *= a_factor;
-
         }
+        /* Step forward */
+        a *= a_factor;
     }
 
     char *out_fname = pars.OutputFilename;
@@ -499,6 +505,7 @@ int main(int argc, char *argv[]) {
     free(sources);
     free(grav_meshes);
     free(a_snapshots);
+    free(genparts);
 
     /* Clean up */
     cleanParams(&pars);

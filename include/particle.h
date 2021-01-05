@@ -25,4 +25,13 @@ struct particle {
     double mass;
 };
 
+/* Extended particle with velocity data and more */
+struct particle_ext {
+    double x[3];
+    double v[3];
+    double mass;
+    double mass_i;
+    double f, f_i;
+};
+
 #endif
