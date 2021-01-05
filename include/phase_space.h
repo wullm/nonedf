@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file is part of Mitos.
- * Copyright (c) 2020 Willem Elbers (whe@willemelbers.com)
+ * This file is part of Nonedf.
+ * Copyright (c) 2021 Willem Elbers (whe@willemelbers.com)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published
@@ -17,17 +17,14 @@
  *
  ******************************************************************************/
 
-#ifndef NONEDF_H
-#define NONEDF_H
-
+#ifndef PHASE_SPACE_H
+#define PHASE_SPACE_H
 
 #include "input.h"
-#include "particle.h"
-#include "random.h"
 #include "cosmology.h"
-#include "fft.h"
-#include "fft_kernels.h"
-#include "relativity.h"
-#include "phase_space.h"
+
+double fermi_dirac_density(struct units *us, struct cosmology *cosmo, double a,
+                           double *V, double m_eV);
+double fermi_dirac_momentum(struct units *us, double a, double *V, double m_eV);
 
 #endif

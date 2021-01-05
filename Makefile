@@ -29,6 +29,7 @@ all:
 	$(GCC) src/cosmology.c -c -o lib/cosmology.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/fft.c -c -o lib/fft.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/mesh_grav.c -c -o lib/mesh_grav.o $(INCLUDES) $(CFLAGS)
+	$(GCC) src/phase_space.c -c -o lib/phase_space.o $(INCLUDES) $(CFLAGS)
 
 	$(GCC) src/nonedf.c -o nonedf $(INCLUDES) $(OBJECTS) $(LIBRARIES) $(CFLAGS) $(LDFLAGS)
 

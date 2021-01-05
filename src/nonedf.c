@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
         fft_normalize_r2c(fbox, N, BoxLen);
         fftw_destroy_plan(r2c);
 
-        /* Apply the inverse Poisson kernel 1/k^2 */
+        /* Apply the inverse Poisson kernel -1/k^2 */
         fft_apply_kernel(fbox, fbox, N, BoxLen, kernel_inv_poisson, NULL);
 
         /* Fourier transform back */
@@ -351,12 +351,21 @@ int main(int argc, char *argv[]) {
         double x[3];
         double v[3];
 
+        /* Generate a random velocity from the Fermi-Dirac distribution */
         generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
 
-        double R_nu = pars.CentralRadius;
+        /* Compute initial phase space density */
+        double f_i = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
+        double f = f_i;
+
+        /* The initial particle mass */
+        double m_i = 1.0;
+        double w = 0; //delta-f weight
+        double m = 1e-20;
 
 
         /* Generate a random point in the central ball with radius R_nu */
+        double R_nu = pars.CentralRadius;
 
         /* We first generate a random point on the sphere using Gaussians */
         x[0] = sampleNorm(&seed);
@@ -379,10 +388,12 @@ int main(int argc, char *argv[]) {
         x[1] = x[1] * r + BoxLen * 0.5;
         x[0] = x[2] * r + BoxLen * 0.5;
 
-        double a_factor = 1.03;
 
+        /* Integrate the particle forward */
+        double a_factor = 1.03;
         for (int step=0; step<40; step++) {
-            printf("%d %f %f %f %f\n", step, a, x[0], x[1], x[2]);
+            double p = fermi_dirac_momentum(&us, a, v, cosmo.M_nu[0]);
+            printf("%d %f %f %f %f %e %e\n", step, a, x[0], x[1], x[2], p, w);
 
             /* Find the bounding snapshots */
             int j;
@@ -422,6 +433,11 @@ int main(int argc, char *argv[]) {
             v[1] += acc[1] * kick_factor;
             v[2] += acc[2] * kick_factor;
 
+            /* Apply delta-f step */
+            f = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
+            w = (f - f_i) / f_i;
+            m = w * m_i;
+
             /* Execute drift */
             x[0] += v[0] * drift_factor;
             x[1] += v[1] * drift_factor;
@@ -445,6 +461,10 @@ int main(int argc, char *argv[]) {
 
                 /* Sample a new velocity */
                 generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
+                /* Re-compute the initial phase space density */
+                f_i = fermi_dirac_density(&us, &cosmo, a, v, cosmo.M_nu[0]);
+                f = f_i;
+                w = 0;
             }
 
             /* Step forward */
