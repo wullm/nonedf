@@ -410,6 +410,13 @@ int main(int argc, char *argv[]) {
             double kick_factor = get_kick_factor(&cosmo, log(a), log(a * a_factor));
             double drift_factor = get_drift_factor(&cosmo, log(a), log(a * a_factor));
 
+            /* Fetch the relativistic correction factors */
+            double relat_kick_correction = relativity_kick(v, a, &us);
+            double relat_drift_correction = relativity_drift(v, a, &us);
+
+            kick_factor *= relat_kick_correction;
+            drift_factor *= relat_drift_correction;
+
             /* Execute kick */
             v[0] += acc[0] * kick_factor;
             v[1] += acc[1] * kick_factor;
