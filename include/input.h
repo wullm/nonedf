@@ -79,23 +79,10 @@ struct units {
     double ElectronVolt;
 };
 
-struct cosmology {
-    double h;
-    double n_s;
-    double A_s;
-    double k_pivot;
-    double z_ini;
-    double log_tau_ini; //conformal time
-    double rho_crit; //not user-specified, but inferred from h
-};
-
 int readParams(struct params *parser, const char *fname);
 int readUnits(struct units *us, const char *fname);
-int readCosmology(struct cosmology *cosmo, struct units *us, const char *fname);
 
 int cleanParams(struct params *parser);
-
-hid_t openFile_MPI(MPI_Comm comm, const char *fname);
 
 static inline void generateFieldFilename(const struct params *pars, char *fname,
                                          const char *Identifier, const char *title,

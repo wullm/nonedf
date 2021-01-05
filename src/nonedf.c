@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
 
     struct params pars;
     struct units us;
+    struct cosmology cosmo = {0};
 
     readParams(&pars, fname);
     readUnits(&us, fname);
@@ -56,8 +57,18 @@ int main(int argc, char *argv[]) {
         sprintf(fname_snap, "%s_%04d.hdf5", pars.InputFilename, i);
         printf("%s\n", fname_snap);
 
-        // /* Open the file */
-        // hid_t h_file = H5Fopen(fname_snap, H5F_ACC_RDONLY, H5P_DEFAULT);
+        /* Open the file */
+        hid_t h_file = H5Fopen(fname_snap, H5F_ACC_RDONLY, H5P_DEFAULT);
+
+        /* Read cosmology if this has not happened yet */
+        if (cosmo.h == 0) {
+            readCosmology(&cosmo, &us, h_file);
+        }
+
+        /* Close the file */
+        H5Fclose(h_file);
+
+
         //
         // /* Open the Header group */
         // hid_t h_grp = H5Gopen(h_file, "Header", H5P_DEFAULT);
@@ -222,8 +233,10 @@ int main(int argc, char *argv[]) {
     /* Random sampler used for thermal species */
     struct sampler thermal_sampler;
 
+    printf("The neutrino temperature is %f\n", cosmo.T_nu);
+
     /* Initialize the sampler */
-    double T_eV = 1.95 * us.kBoltzmann / us.ElectronVolt;
+    double T_eV = cosmo.T_nu * us.kBoltzmann / us.ElectronVolt;
     double thermal_params[2] = {T_eV, 0.0};
     /* Rescale the domain */
     double xl = THERMAL_MIN_MOMENTUM * T_eV; //units of kb*T
@@ -238,6 +251,11 @@ int main(int argc, char *argv[]) {
     double p0_eV = samplerCustom(&thermal_sampler, &seed); //present-day momentum
     printf("%f\n", p0_eV);
 
+    E_z(1.0, &cosmo);
+
+    double fac = get_kick_factor(&cosmo, log(0.55), log(0.57));
+    printf("The kick factor is %e\n", fac);
+
     /* Clean the random sampler */
     cleanSampler(&thermal_sampler);
 
@@ -246,4 +264,5 @@ int main(int argc, char *argv[]) {
 
     /* Clean up */
     cleanParams(&pars);
+    cleanCosmology(&cosmo);
 }

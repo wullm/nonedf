@@ -23,5 +23,7 @@
 
 #include "input.h"
 #include "particle.h"
+#include "random.h"
+#include "cosmology.h"
 
 #endif
