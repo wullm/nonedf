@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
     int snaps = pars.Snapshots;
     long long int NPartTot = 0;
     struct particle **sources = malloc(sizeof(struct particle*) * snaps);
+    double *a_snapshots = calloc(snaps, sizeof(double));
 
     /* Load the source particles */
     for (int i=0; i<snaps; i++) {
@@ -104,6 +105,9 @@ int main(int argc, char *argv[]) {
             assert(h_err >= 0);
 
             printf("The redshift was %f\n", redshift);
+
+            double a = 1./(1+redshift);
+            a_snapshots[i] = a;
 
             /* Close the Cosmology group */
             H5Gclose(h_grp);
@@ -342,16 +346,105 @@ int main(int argc, char *argv[]) {
 
 
     /* Generate random neutrino particles */
-    for (int i=0; i<8; i++) {
-        double p0_eV = samplerCustom(&thermal_sampler, &seed); //present-day momentum
-        double x[3] = {1.0, 2.0, 7.0};
-        double v[3] = {1.0, 1.0, 1.0};
-        
+    for (int i=0; i<1; i++) {
+        double a = cosmo.a_begin;
+        double x[3];
+        double v[3];
 
+        generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
+
+        double R_nu = pars.CentralRadius;
+
+
+        /* Generate a random point in the central ball with radius R_nu */
+
+        /* We first generate a random point on the sphere using Gaussians */
+        x[0] = sampleNorm(&seed);
+        x[1] = sampleNorm(&seed);
+        x[2] = sampleNorm(&seed);
+
+        /* And normalize */
+        const double r_length = hypot(x[0], hypot(x[1], x[2]));
+        if (r_length > 0) {
+            x[0] /= r_length;
+            x[1] /= r_length;
+            x[2] /= r_length;
+        }
+
+        /* Next, use the last uniform random variate for the radial coordinate */
+        double r = cbrt(sampleUniform(&seed)) * R_nu;
+
+        /* Apply the radial coordinate and map to the centre of the rectangle */
+        x[0] = x[0] * r + BoxLen * 0.5;
+        x[1] = x[1] * r + BoxLen * 0.5;
+        x[0] = x[2] * r + BoxLen * 0.5;
+
+        double a_factor = 1.03;
+
+        for (int step=0; step<40; step++) {
+            printf("%d %f %f %f %f\n", step, a, x[0], x[1], x[2]);
+
+            /* Find the bounding snapshots */
+            int j;
+            for (j=0; j<snaps; j++) {
+                if (a_snapshots[j] > a) break;
+            }
+            int ind_prev = j-1;
+            int ind_next = j;
+            double a_prev = a_snapshots[ind_prev];
+            double a_next = a_snapshots[ind_next];
+            double delta = (a - a_prev) / (a_next - a_prev);
+
+            /* Get the accelerations at the current location */
+            double acc_prev[3];
+            double acc_next[3];
+            accelCIC(grav_meshes[ind_prev], N, BoxLen, x[0], x[1], x[2], acc_prev);
+            accelCIC(grav_meshes[ind_next], N, BoxLen, x[0], x[1], x[2], acc_next);
+
+            /* Interpolate the acceleration */
+            double acc[3] = {acc_prev[0] + delta * (acc_next[0] - acc_prev[0]),
+                             acc_prev[1] + delta * (acc_next[1] - acc_prev[1]),
+                             acc_prev[2] + delta * (acc_next[2] - acc_prev[2])};
+
+            /* Fetch the kick and drift factors */
+            double kick_factor = get_kick_factor(&cosmo, log(a), log(a * a_factor));
+            double drift_factor = get_drift_factor(&cosmo, log(a), log(a * a_factor));
+
+            /* Execute kick */
+            v[0] += acc[0] * kick_factor;
+            v[1] += acc[1] * kick_factor;
+            v[2] += acc[2] * kick_factor;
+
+            /* Execute drift */
+            x[0] += v[0] * drift_factor;
+            x[1] += v[1] * drift_factor;
+            x[2] += v[2] * drift_factor;
+
+            /* Ensure that particles wrap */
+            x[0] = fwrap(x[0], BoxLen);
+            x[1] = fwrap(x[1], BoxLen);
+            x[2] = fwrap(x[2], BoxLen);
+
+            /* If the particle leaves the central sphere, map it around */
+            double r_x = x[0] - 0.5 * BoxLen;
+            double r_y = x[1] - 0.5 * BoxLen;
+            double r_z = x[2] - 0.5 * BoxLen;
+            double r2 = r_x * r_x + r_y * r_y + r_z * r_z;
+            if (r2 > R_nu * R_nu) {
+                /* Map to its antipodal point */
+                x[0] = 0.5 * BoxLen - r_x;
+                x[1] = 0.5 * BoxLen - r_y;
+                x[2] = 0.5 * BoxLen - r_z;
+
+                /* Sample a new velocity */
+                generateVelocity(&thermal_sampler, &us, &cosmo, &seed, a, v);
+            }
+
+            /* Step forward */
+            a *= a_factor;
+
+        }
     }
-
-    double fac = get_kick_factor(&cosmo, log(0.55), log(0.57));
-    printf("The kick factor is %e\n", fac);
 
     /* Clean the random sampler */
     cleanSampler(&thermal_sampler);
@@ -363,6 +456,7 @@ int main(int argc, char *argv[]) {
     }
     free(sources);
     free(grav_meshes);
+    free(a_snapshots);
 
     /* Clean up */
     cleanParams(&pars);

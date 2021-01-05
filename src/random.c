@@ -287,3 +287,32 @@ double samplerCustom(struct sampler *s, rng_state *state) {
 
     return H;
 }
+
+void generateVelocity(struct sampler *s, struct units *us, struct cosmology *c,
+                      rng_state *state, double a, double *v) {
+
+    /* Generate a random momentum */
+    double p0_eV = samplerCustom(s, state); //present-day momentum
+    double p_eV = p0_eV / a; //redshifted momentum
+
+    /* Convert to speed in internal units. Note that this is
+     * the spatial part of the relativistic 4-velocity. */
+    double V = p_eV / c->M_nu[0] * us->SpeedOfLight;
+
+    /* Generate a random point on the unit sphere using Gaussians */
+    double nx = sampleNorm(state);
+    double ny = sampleNorm(state);
+    double nz = sampleNorm(state);
+
+    /* And normalize */
+    double length = hypot(nx, hypot(ny, nz));
+    if (length > 0) {
+        nx /= length;
+        ny /= length;
+        nz /= length;
+    }
+
+    v[0] = nx * V;
+    v[1] = ny * V;
+    v[2] = nz * V;
+}

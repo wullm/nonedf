@@ -28,6 +28,7 @@ all:
 	$(GCC) src/random.c -c -o lib/random.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/cosmology.c -c -o lib/cosmology.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/fft.c -c -o lib/fft.o $(INCLUDES) $(CFLAGS)
+	$(GCC) src/mesh_grav.c -c -o lib/mesh_grav.o $(INCLUDES) $(CFLAGS)
 
 	$(GCC) src/nonedf.c -o nonedf $(INCLUDES) $(OBJECTS) $(LIBRARIES) $(CFLAGS) $(LDFLAGS)
 

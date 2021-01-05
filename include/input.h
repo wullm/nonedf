@@ -42,6 +42,7 @@ struct params {
     /* Box parameters */
     int GridSize;
     double BoxLen;
+    double CentralRadius;
 
     /* Simulation parameters */
     char *Name;

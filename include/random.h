@@ -20,6 +20,9 @@
 #ifndef RANDOM_H
 #define RANDOM_H
 
+#include "../include/input.h"
+#include "../include/cosmology.h"
+
 /* We use the xoshiro256** pseudo-random number generator */
 #include "../include/random_xorshift.h"
 typedef struct xoshiro256ss_state rng_state;
@@ -107,5 +110,8 @@ int initSampler(struct sampler *s, pdf f, double xl, double xr, void *params);
 int splitInterval(struct sampler *s, int current_interval_id);
 int cleanSampler(struct sampler *s);
 double samplerCustom(struct sampler *s, rng_state *state);
+
+void generateVelocity(struct sampler *s, struct units *us, struct cosmology *c,
+                      rng_state *state, double a, double *v);
 
 #endif
