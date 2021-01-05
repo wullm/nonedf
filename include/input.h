@@ -57,6 +57,8 @@ struct params {
 
     /* Input parameters */
     char *InputFilename;
+    int Snapshots;
+    long long SlabSize;
 
     /* MPI rank (generated automatically) */
     int rank;
@@ -93,9 +95,7 @@ int readCosmology(struct cosmology *cosmo, struct units *us, const char *fname);
 
 int cleanParams(struct params *parser);
 
-int readFieldFile(double **box, int *N, double *box_len, const char *fname);
-int readFieldFileInPlace(double *box, const char *fname);
-
+hid_t openFile_MPI(MPI_Comm comm, const char *fname);
 
 static inline void generateFieldFilename(const struct params *pars, char *fname,
                                          const char *Identifier, const char *title,

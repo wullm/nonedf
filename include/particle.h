@@ -1,6 +1,6 @@
 /*******************************************************************************
- * This file is part of Mitos.
- * Copyright (c) 2020 Willem Elbers (whe@willemelbers.com)
+ * This file is part of Nonedf.
+ * Copyright (c) 2021 Willem Elbers (whe@willemelbers.com)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published
@@ -17,11 +17,12 @@
  *
  ******************************************************************************/
 
-#ifndef NONEDF_H
-#define NONEDF_H
+#ifndef PARTICLE_H
+#define PARTICLE_H
 
-
-#include "input.h"
-#include "particle.h"
+struct particle {
+    double x[3];
+    double m;
+};
 
 #endif
