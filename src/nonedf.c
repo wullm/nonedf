@@ -54,9 +54,13 @@ int main(int argc, char *argv[]) {
 
     /* Allocate memory for source particles */
     int snaps = pars.Snapshots;
-    long long int NPartTot = 0;
+    long int NPartTot = 0;
     struct particle **sources = malloc(sizeof(struct particle*) * snaps);
     double *a_snapshots = calloc(snaps, sizeof(double));
+
+    /* The particle types to be loaded as source particles */
+    int sourceTypeNum = 1;
+    int sourceTypes[1] = {1};
 
     /* Load the source particles */
     for (int i=0; i<snaps; i++) {
@@ -84,6 +88,28 @@ int main(int argc, char *argv[]) {
             assert(h_err >= 0);
             BoxLen = boxlen[0];
         }
+
+        /* Read the numbers of particles of each type */
+        if (NPartTot == 0) {
+            hsize_t number_of_types;
+            hid_t h_attr = H5Aopen(h_grp, "NumPart_Total", H5P_DEFAULT);
+            hid_t h_atspace = H5Aget_space(h_attr);
+            H5Sget_simple_extent_dims(h_atspace, &number_of_types, NULL);
+            long int partnum[number_of_types];
+            hid_t h_err = H5Aread(h_attr, H5T_NATIVE_LONG, partnum);
+            H5Sclose(h_atspace);
+            H5Aclose(h_attr);
+
+            /* Compute the total number of source particles */
+            for (int j=0; j<sourceTypeNum; j++) {
+                partnum[sourceTypes[j]] = 500;
+                NPartTot += partnum[sourceTypes[j]];
+            }
+        }
+
+        /* Allocate memory for the particles */
+        sources[i] = malloc(NPartTot * sizeof(struct particle));
+        printf("Allocated memory for %lu parts\n", NPartTot);
 
         /* Close the Header group again */
         H5Gclose(h_grp);
@@ -113,86 +139,34 @@ int main(int argc, char *argv[]) {
             H5Gclose(h_grp);
         }
 
-        /* Try to open the desired import group */
-        char ImportName[50] = "PartType1";
-
-        /* Open the corresponding group */
-        h_grp = H5Gopen(h_file, ImportName, H5P_DEFAULT);
-
-        /* Open the coordinates dataset */
-        hid_t h_dat = H5Dopen(h_grp, "Coordinates", H5P_DEFAULT);
-
-        /* Find the dataspace (in the file) */
-        hid_t h_space = H5Dget_space (h_dat);
-
-        /* Get the dimensions of this dataspace */
-        hsize_t dims[2];
-        H5Sget_simple_extent_dims(h_space, dims, NULL);
-
-        /* How many particles do we want per slab? */
-        hid_t Npart = dims[0];
-        Npart = (hid_t) pars.SlabSize*.5;
-        NPartTot = Npart;
-        hid_t max_slab_size = pars.SlabSize;
-        int slabs = Npart/max_slab_size;
+        /* Number of particles loaded for this snapshot */
         hid_t counter = 0;
 
-        printf("Met %d slabs\n", slabs);
+        for (int j=0; j<sourceTypeNum; j++) {
+            char ImportName[50];
+            sprintf(ImportName, "PartType%d", sourceTypes[j]);
+            printf("Loading %s\n", ImportName);
 
-        /* Allocate memory for the particles */
-        sources[i] = malloc(Npart * sizeof(struct particle));
-        printf("Allocated memory for %lu parts\n", Npart);
+            /* Try to open the desired import group */
 
-        /* Close the data and memory spaces */
-        H5Sclose(h_space);
-
-        /* Close the dataset */
-        H5Dclose(h_dat);
-
-        int slab_counter = 0;
-
-        for (int k=0; k<slabs+1; k+=1) {
-            /* All slabs have the same number of particles, except possibly the last */
-            hid_t slab_size = fmin(Npart - k * max_slab_size, max_slab_size);
-            counter += slab_size; //the number of particles read
-
-            /* Define the hyperslab */
-            hsize_t slab_dims[2], start[2]; //for 3-vectors
-            hsize_t slab_dims_one[1], start_one[1]; //for scalars
-
-            /* Slab dimensions for 3-vectors */
-            slab_dims[0] = slab_size;
-            slab_dims[1] = 3; //(x,y,z)
-            start[0] = k * max_slab_size;
-            start[1] = 0; //start with x
-
-            /* Slab dimensions for scalars */
-            slab_dims_one[0] = slab_size;
-            start_one[0] = k * max_slab_size;
+            /* Open the corresponding group */
+            h_grp = H5Gopen(h_file, ImportName, H5P_DEFAULT);
 
             /* Open the coordinates dataset */
-            h_dat = H5Dopen(h_grp, "Coordinates", H5P_DEFAULT);
+            hid_t h_dat = H5Dopen(h_grp, "Coordinates", H5P_DEFAULT);
 
             /* Find the dataspace (in the file) */
-            h_space = H5Dget_space (h_dat);
+            hid_t h_space = H5Dget_space (h_dat);
 
-            /* Select the hyperslab */
-            hid_t status = H5Sselect_hyperslab(h_space, H5S_SELECT_SET, start,
-                                               NULL, slab_dims, NULL);
-            assert(status >= 0);
+            /* Get the dimensions of this dataspace */
+            hsize_t dims[2];
+            H5Sget_simple_extent_dims(h_space, dims, NULL);
 
-
-            /* Create a memory space */
-            hid_t h_mems = H5Screate_simple(2, slab_dims, NULL);
-
-            /* Create the data array */
-            double data[slab_size][3];
-
-            status = H5Dread(h_dat, H5T_NATIVE_DOUBLE, h_mems, h_space, H5P_DEFAULT,
-                             data);
-
-            /* Close the memory space */
-            H5Sclose(h_mems);
+            /* How many particles do we want per slab? */
+            hid_t Npart = dims[0];
+            Npart = (hid_t) pars.SlabSize*.5;
+            hid_t max_slab_size = pars.SlabSize;
+            int slabs = Npart/max_slab_size;
 
             /* Close the data and memory spaces */
             H5Sclose(h_space);
@@ -200,41 +174,93 @@ int main(int argc, char *argv[]) {
             /* Close the dataset */
             H5Dclose(h_dat);
 
+            int slab_counter = 0;
 
-            /* Open the masses dataset */
-            h_dat = H5Dopen(h_grp, "Masses", H5P_DEFAULT);
+            for (int k=0; k<slabs+1; k+=1) {
+                /* All slabs have the same number of particles, except possibly the last */
+                hid_t slab_size = fmin(Npart - k * max_slab_size, max_slab_size);
+                counter += slab_size; //the number of particles read
 
-            /* Find the dataspace (in the file) */
-            h_space = H5Dget_space (h_dat);
+                /* Define the hyperslab */
+                hsize_t slab_dims[2], start[2]; //for 3-vectors
+                hsize_t slab_dims_one[1], start_one[1]; //for scalars
 
-            /* Select the hyperslab */
-            status = H5Sselect_hyperslab(h_space, H5S_SELECT_SET, start_one, NULL,
-                                                slab_dims_one, NULL);
+                /* Slab dimensions for 3-vectors */
+                slab_dims[0] = slab_size;
+                slab_dims[1] = 3; //(x,y,z)
+                start[0] = k * max_slab_size;
+                start[1] = 0; //start with x
 
-            /* Create a memory space */
-            h_mems = H5Screate_simple(1, slab_dims_one, NULL);
+                /* Slab dimensions for scalars */
+                slab_dims_one[0] = slab_size;
+                start_one[0] = k * max_slab_size;
 
-            /* Create the data array */
-            double mass_data[slab_size];
+                /* Open the coordinates dataset */
+                h_dat = H5Dopen(h_grp, "Coordinates", H5P_DEFAULT);
 
-            status = H5Dread(h_dat, H5T_NATIVE_DOUBLE, h_mems, h_space, H5P_DEFAULT,
-                             mass_data);
+                /* Find the dataspace (in the file) */
+                h_space = H5Dget_space (h_dat);
 
-            /* Close the memory space */
-            H5Sclose(h_mems);
+                /* Select the hyperslab */
+                hid_t status = H5Sselect_hyperslab(h_space, H5S_SELECT_SET, start,
+                                                   NULL, slab_dims, NULL);
+                assert(status >= 0);
 
-            /* Close the data and memory spaces */
-            H5Sclose(h_space);
 
-            /* Close the dataset */
-            H5Dclose(h_dat);
+                /* Create a memory space */
+                hid_t h_mems = H5Screate_simple(2, slab_dims, NULL);
 
-            /* Store the particles */
-            for (int l=0; l<slab_size; l++) {
-                sources[i][counter - slab_size + l].x[0] = data[l][0];
-                sources[i][counter - slab_size + l].x[1] = data[l][1];
-                sources[i][counter - slab_size + l].x[2] = data[l][2];
-                sources[i][counter - slab_size + l].mass = mass_data[l];
+                /* Create the data array */
+                double data[slab_size][3];
+
+                status = H5Dread(h_dat, H5T_NATIVE_DOUBLE, h_mems, h_space, H5P_DEFAULT,
+                                 data);
+
+                /* Close the memory space */
+                H5Sclose(h_mems);
+
+                /* Close the data and memory spaces */
+                H5Sclose(h_space);
+
+                /* Close the dataset */
+                H5Dclose(h_dat);
+
+
+                /* Open the masses dataset */
+                h_dat = H5Dopen(h_grp, "Masses", H5P_DEFAULT);
+
+                /* Find the dataspace (in the file) */
+                h_space = H5Dget_space (h_dat);
+
+                /* Select the hyperslab */
+                status = H5Sselect_hyperslab(h_space, H5S_SELECT_SET, start_one, NULL,
+                                                    slab_dims_one, NULL);
+
+                /* Create a memory space */
+                h_mems = H5Screate_simple(1, slab_dims_one, NULL);
+
+                /* Create the data array */
+                double mass_data[slab_size];
+
+                status = H5Dread(h_dat, H5T_NATIVE_DOUBLE, h_mems, h_space, H5P_DEFAULT,
+                                 mass_data);
+
+                /* Close the memory space */
+                H5Sclose(h_mems);
+
+                /* Close the data and memory spaces */
+                H5Sclose(h_space);
+
+                /* Close the dataset */
+                H5Dclose(h_dat);
+
+                /* Store the particles */
+                for (int l=0; l<slab_size; l++) {
+                    sources[i][counter - slab_size + l].x[0] = data[l][0];
+                    sources[i][counter - slab_size + l].x[1] = data[l][1];
+                    sources[i][counter - slab_size + l].x[2] = data[l][2];
+                    sources[i][counter - slab_size + l].mass = mass_data[l];
+                }
             }
         }
 

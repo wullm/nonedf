@@ -25,6 +25,8 @@ all:
 	make minIni
 	mkdir -p lib
 	$(GCC) src/input.c -c -o lib/input.o $(INCLUDES) $(CFLAGS)
+	$(GCC) src/output.c -c -o lib/output.o $(INCLUDES) $(CFLAGS)
+	$(GCC) src/header.c -c -o lib/header.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/random.c -c -o lib/random.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/cosmology.c -c -o lib/cosmology.o $(INCLUDES) $(CFLAGS)
 	$(GCC) src/fft.c -c -o lib/fft.o $(INCLUDES) $(CFLAGS)
