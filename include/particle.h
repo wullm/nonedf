@@ -22,7 +22,7 @@
 
 struct particle {
     double x[3];
-    double m;
+    double mass;
 };
 
 #endif

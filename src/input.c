@@ -28,7 +28,6 @@ int readParams(struct params *pars, const char *fname) {
      pars->Seed = ini_getl("Random", "Seed", 1, fname);
 
      pars->GridSize = ini_getl("Box", "GridSize", 64, fname);
-     pars->BoxLen = ini_getd("Box", "BoxLen", 1.0, fname);
 
 
      pars->MaxParticleTypes = ini_getl("Simulation", "MaxParticleTypes", 1, fname);

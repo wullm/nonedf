@@ -25,5 +25,7 @@
 #include "particle.h"
 #include "random.h"
 #include "cosmology.h"
+#include "fft.h"
+#include "fft_kernels.h"
 
 #endif

@@ -214,6 +214,9 @@ int intregateCosmologyTables(struct cosmology *cosmo) {
         cosmo->kick_factor_table[i] = result;
     }
 
+    /* Free the GSL workspace */
+    gsl_integration_workspace_free(space);
+
     return 0;
 }
 
@@ -249,9 +252,9 @@ double get_kick_factor(const struct cosmology *cosmo, const double log_a_start,
   const double int0 = interp_table(cosmo->kick_factor_table,
                                    cosmo->log_a_table, log_a_start,
                                    cosmo->log_a_begin, cosmo->log_a_end);
-  const double int1 =interp_table(cosmo->kick_factor_table,
-                                  cosmo->log_a_table, log_a_end,
-                                  cosmo->log_a_begin, cosmo->log_a_end);
+  const double int1 = interp_table(cosmo->kick_factor_table,
+                                   cosmo->log_a_table, log_a_end,
+                                   cosmo->log_a_begin, cosmo->log_a_end);
 
   return int1 - int0;
 }
